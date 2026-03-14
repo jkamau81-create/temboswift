@@ -1,0 +1,36 @@
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const logger = require('./config/logger');
+const authRoutes = require('./routes/auth');
+const kycRoutes = require('./routes/kyc');
+const transferRoutes = require('./routes/transfers');
+const recipientRoutes = require('./routes/recipients');
+const stripeWebhook = require('./routes/stripe-webhook');
+const mpesaRoutes = require('./routes/mpesa');
+const app = express();
+const PORT = process.env.PORT || 3001;
+app.use(helmet());
+app.use(cors({ origin: process.env.FRONTEND_URL || '*', credentials: true }));
+app.use('/api/auth', rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: { error: 'Too many requests' } }));
+app.use('/api', rateLimit({ windowMs: 1 * 60 * 1000, max: 100 }));
+app.use('/api/stripe', stripeWebhook);
+app.use(express.json({ limit: '1mb' }));
+app.get('/health', (req, res) => res.json({ status: 'ok', version: '1.0.0', env: process.env.NODE_ENV }));
+app.use('/api/auth', authRoutes);
+app.use('/api/kyc', kycRoutes);
+app.use('/api/transfers', transferRoutes);
+app.use('/api/recipients', recipientRoutes);
+app.use('/api/mpesa', mpesaRoutes);
+app.use((req, res) => res.status(404).json({ error: `Route ${req.method} ${req.path} not found` }));
+app.use((err, req, res, next) => {
+  logger.error('Unhandled error', { error: err.message });
+  res.status(500).json({ error: 'Internal server error' });
+});
+app.listen(PORT, () => {
+  logger.info(`TemboSwift API running on port ${PORT}`);
+  logger.info(`Health check: http://localhost:${PORT}/health`);
+});
+module.exports = app;
