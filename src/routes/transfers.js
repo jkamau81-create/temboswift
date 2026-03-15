@@ -1,8 +1,9 @@
-﻿const express = require('express');
+const express = require('express');
 const pool = require('../db/pool');
 const fxService = require('../services/fx');
 const stripeService = require('../services/stripe');
 const compliance = require('../services/compliance');
+const email = require('../services/email');
 const logger = require('../config/logger');
 const { requireAuth, requireKYC } = require('../middleware/auth');
 const router = express.Router();
@@ -42,6 +43,7 @@ router.post('/', requireAuth, requireKYC, async (req, res) => {
     });
     await client.query('UPDATE transfers SET stripe_payment_intent_id = $1 WHERE id = $2', [paymentIntentId, transfer.id]);
     await client.query('COMMIT');
+    email.sendTransferCreated({ to: req.user.email, name: req.user.full_name, amount_usd: quote.amount_usd, amount_kes: quote.amount_kes, recipient_name: recipient.full_name, fee_usd: quote.fee_usd, rate: quote.client_rate }).catch(()=>{});
     logger.info('Transfer created', { transferId: transfer.id });
     res.status(201).json({ transfer: { ...transfer, stripe_payment_intent_id: paymentIntentId }, quote, clientSecret });
   } catch (err) {
