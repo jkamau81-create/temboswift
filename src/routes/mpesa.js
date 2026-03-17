@@ -2,6 +2,7 @@
 const pool = require('../db/pool');
 const mpesa = require('../services/mpesa');
 const email = require('../services/email');
+const sms = require('../services/sms');
 const logger = require('../config/logger');
 const router = express.Router();
 router.post('/result', async (req, res) => {
@@ -16,10 +17,13 @@ router.post('/result', async (req, res) => {
       );
       logger.info('M-Pesa payout delivered', { conversationId, transactionId });
       pool.query(
-        'SELECT u.email, u.full_name, t.amount_usd, t.amount_kes, r.full_name as recipient_name FROM transfers t JOIN users u ON u.id=t.user_id JOIN recipients r ON r.id=t.recipient_id WHERE t.mpesa_conversation_id=$1',
+        'SELECT u.email, u.full_name, t.amount_usd, t.amount_kes, r.full_name as recipient_name, r.phone as recipient_phone FROM transfers t JOIN users u ON u.id=t.user_id JOIN recipients r ON r.id=t.recipient_id WHERE t.mpesa_conversation_id=$1',
         [conversationId]
       ).then(({ rows }) => {
-        if (rows[0]) email.sendTransferDelivered({ to: rows[0].email, name: rows[0].full_name, amount_usd: rows[0].amount_usd, amount_kes: rows[0].amount_kes, recipient_name: rows[0].recipient_name }).catch(() => {});
+        if (rows[0]) {
+          email.sendTransferDelivered({ to: rows[0].email, name: rows[0].full_name, amount_usd: rows[0].amount_usd, amount_kes: rows[0].amount_kes, recipient_name: rows[0].recipient_name }).catch(() => {});
+          sms.sendTransferDeliveredSMS({ phone: rows[0].recipient_phone, recipientName: rows[0].recipient_name, amountKes: rows[0].amount_kes, senderName: rows[0].full_name }).catch(() => {});
+        }
       }).catch(() => {});
     } else {
       await pool.query(
