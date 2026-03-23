@@ -1,44 +1,42 @@
-﻿const axios = require('axios');
-const pool = require('../db/pool');
+﻿const pool = require('../db/pool');
+const axios = require('axios');
 const logger = require('../config/logger');
-const CACHE_TTL_MINUTES = 30;
-const MARKUP = 0.015;
-const BASE_FEE_USD = 4.99;
-async function getQuote(amountUsd) {
-  const midRate = await getMidRate();
-  const clientRate = +(midRate * (1 - MARKUP)).toFixed(4);
-  const fee = amountUsd >= 200 ? 4.99 : amountUsd >= 100 ? 3.99 : 2.99;
-  const amountKes = +((amountUsd - fee) * clientRate).toFixed(2);
-  return {
-    from_currency: 'USD',
-    to_currency: 'KES',
-    amount_usd: amountUsd,
-    fee_usd: fee,
-    mid_rate: midRate,
-    client_rate: clientRate,
-    amount_kes: amountKes,
-    expires_in: 300,
-  };
-}
-async function getMidRate() {
-  const { rows } = await pool.query(
-    "SELECT rate FROM fx_rates WHERE from_currency = 'USD' AND to_currency = 'KES' AND fetched_at > NOW() - INTERVAL '30 minutes' ORDER BY fetched_at DESC LIMIT 1"
-  );
-  if (rows.length) return parseFloat(rows[0].rate);
+
+const SPREAD = 0.022; // 2.2% spread — how we make money (no flat fees)
+
+async function getLiveRate() {
   try {
-    const resp = await axios.get(
-      `https://v6.exchangerate-api.com/v6/${process.env.FX_API_KEY}/pair/USD/KES`
-    );
-    const rate = resp.data.conversion_rate;
+    const { data } = await axios.get('https://api.exchangerate-api.com/v4/latest/USD', { timeout: 5000 });
+    const midRate = data.rates['KES'];
+    if (!midRate) throw new Error('KES rate not found');
+    const clientRate = parseFloat((midRate * (1 - SPREAD)).toFixed(4));
     await pool.query(
-      "INSERT INTO fx_rates (from_currency, to_currency, rate, fee_usd) VALUES ('USD', 'KES', $1, $2)",
-      [rate, BASE_FEE_USD]
+      'INSERT INTO fx_rates (currency_pair, mid_rate, client_rate, source) VALUES ($1, $2, $3, $4) ON CONFLICT (currency_pair) DO UPDATE SET mid_rate = $2, client_rate = $3, updated_at = NOW()',
+      ['USD_KES', midRate, clientRate, 'exchangerate-api']
     );
-    logger.info('FX rate refreshed', { rate });
-    return rate;
+    return { mid_rate: midRate, client_rate: clientRate };
   } catch (err) {
     logger.warn('FX rate fetch failed, using fallback', { error: err.message });
-    return 131.20;
+    try {
+      const { rows } = await pool.query("SELECT mid_rate, client_rate FROM fx_rates WHERE currency_pair = 'USD_KES'");
+      if (rows.length) return { mid_rate: parseFloat(rows[0].mid_rate), client_rate: parseFloat(rows[0].client_rate) };
+    } catch (dbErr) { logger.error('DB fallback failed', { error: dbErr.message }); }
+    return { mid_rate: 131.0, client_rate: parseFloat((131.0 * (1 - SPREAD)).toFixed(4)) };
   }
 }
-module.exports = { getQuote, getMidRate };
+
+async function getQuote(amountUsd) {
+  const { mid_rate, client_rate } = await getLiveRate();
+  const amountKes = parseFloat((amountUsd * client_rate).toFixed(2));
+  return {
+    amount_usd: amountUsd,
+    amount_kes: amountKes,
+    fee_usd: 0,
+    total_usd: amountUsd,
+    mid_rate,
+    client_rate,
+    spread_pct: (SPREAD * 100).toFixed(1),
+  };
+}
+
+module.exports = { getLiveRate, getQuote };
