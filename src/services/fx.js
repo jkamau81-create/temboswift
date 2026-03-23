@@ -1,8 +1,8 @@
-﻿const pool = require('../db/pool');
+const pool = require('../db/pool');
 const axios = require('axios');
 const logger = require('../config/logger');
 
-const SPREAD = 0.022; // 2.2% spread — how we make money (no flat fees)
+const SPREAD = 0.008; // 2.2% spread � how we make money (no flat fees)
 
 async function getLiveRate() {
   try {
