@@ -1,8 +1,8 @@
-const pool = require('../db/pool');
+ï»¿const pool = require('../db/pool');
 const axios = require('axios');
 const logger = require('../config/logger');
 
-const SPREAD = 0.008; // 2.2% spread — how we make money (no flat fees)
+const SPREAD = 0.008; // 0.8% spread - best rate in market
 
 async function getLiveRate() {
   try {
@@ -11,17 +11,22 @@ async function getLiveRate() {
     if (!midRate) throw new Error('KES rate not found');
     const clientRate = parseFloat((midRate * (1 - SPREAD)).toFixed(4));
     await pool.query(
-      'INSERT INTO fx_rates (currency_pair, mid_rate, client_rate, source) VALUES ($1, $2, $3, $4) ON CONFLICT (currency_pair) DO UPDATE SET mid_rate = $2, client_rate = $3, updated_at = NOW()',
-      ['USD_KES', midRate, clientRate, 'exchangerate-api']
+      'INSERT INTO fx_rates (from_currency, to_currency, rate, fee_usd) VALUES ($1, $2, $3, $4) ON CONFLICT (from_currency, to_currency) DO UPDATE SET rate = $3, fee_usd = $4, fetched_at = NOW()',
+      ['USD', 'KES', clientRate, 0]
     );
     return { mid_rate: midRate, client_rate: clientRate };
   } catch (err) {
     logger.warn('FX rate fetch failed, using fallback', { error: err.message });
     try {
-      const { rows } = await pool.query("SELECT mid_rate, client_rate FROM fx_rates WHERE currency_pair = 'USD_KES'");
-      if (rows.length) return { mid_rate: parseFloat(rows[0].mid_rate), client_rate: parseFloat(rows[0].client_rate) };
+      const { rows } = await pool.query("SELECT rate FROM fx_rates WHERE from_currency = 'USD' AND to_currency = 'KES'");
+      if (rows.length) {
+        const clientRate = parseFloat(rows[0].rate);
+        const midRate = parseFloat((clientRate / (1 - SPREAD)).toFixed(4));
+        return { mid_rate: midRate, client_rate: clientRate };
+      }
     } catch (dbErr) { logger.error('DB fallback failed', { error: dbErr.message }); }
-    return { mid_rate: 131.0, client_rate: parseFloat((131.0 * (1 - SPREAD)).toFixed(4)) };
+    const midRate = 129.59;
+    return { mid_rate: midRate, client_rate: parseFloat((midRate * (1 - SPREAD)).toFixed(4)) };
   }
 }
 
