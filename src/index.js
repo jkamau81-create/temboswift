@@ -11,6 +11,7 @@ const recipientRoutes = require('./routes/recipients');
 const stripeWebhook = require('./routes/stripe-webhook');
 const mpesaRoutes = require('./routes/mpesa');
 const adminRoutes = require('./routes/admin');
+const cardRoutes = require('./routes/cards');
 const app = express();
 const PORT = process.env.PORT || 3001;
 app.use(helmet());
@@ -26,6 +27,7 @@ app.use('/api/transfers', transferRoutes);
 app.use('/api/recipients', recipientRoutes);
 app.use('/api/mpesa', mpesaRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/cards', cardRoutes);
 app.use((req, res) => res.status(404).json({ error: `Route ${req.method} ${req.path} not found` }));
 app.use((err, req, res, next) => {
   logger.error('Unhandled error', { error: err.message });
