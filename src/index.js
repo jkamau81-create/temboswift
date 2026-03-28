@@ -13,6 +13,7 @@ const mpesaRoutes = require('./routes/mpesa');
 const adminRoutes = require('./routes/admin');
 const cardRoutes = require('./routes/cards');
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3001;
 app.use(helmet());
 app.use(cors({ origin: process.env.FRONTEND_URL || '*', credentials: true }));
@@ -38,3 +39,4 @@ app.listen(PORT, () => {
   logger.info(`Health check: http://localhost:${PORT}/health`);
 });
 module.exports = app;
+
