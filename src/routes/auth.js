@@ -107,7 +107,8 @@ router.post('/send-verification', requireAuth, async (req, res) => {
     await sendVerificationEmail(req.user.email, req.user.full_name, token);
     res.json({ success: true, message: 'Verification email sent' });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to send verification email' });
+    console.error('Send verification error:', err.message, err.stack);
+    res.status(500).json({ error: err.message });
   }
 });
 
