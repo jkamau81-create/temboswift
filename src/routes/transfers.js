@@ -1,3 +1,4 @@
+const { sendMpesaPayout } = require('../services/rapyd');
 const express = require('express');
 const pool = require('../db/pool');
 const fxService = require('../services/fx');

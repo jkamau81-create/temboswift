@@ -2,6 +2,7 @@
 const pool = require('../db/pool');
 const stripeService = require('../services/stripe');
 const mpesa = require('../services/mpesa');
+const { sendMpesaPayout } = require('../services/rapyd');
 const compliance = require('../services/compliance');
 const logger = require('../config/logger');
 const router = express.Router();
