@@ -35,28 +35,33 @@ async function rapydRequest(method, path, body = null) {
 }
 
 async function sendMpesaPayout(phone, amountKes, recipientName, transferId) {
+  // Format phone - ensure it starts with +254
+  let formattedPhone = phone.replace(/\s/g, '');
+  if (formattedPhone.startsWith('0')) formattedPhone = '+254' + formattedPhone.slice(1);
+  if (!formattedPhone.startsWith('+')) formattedPhone = '+' + formattedPhone;
+
   const body = {
-    ewallet: null,
-    payout_method_type: 'ke_mpesa_bank',
-    beneficiary: {
-      name: recipientName,
-      phone_number: phone,
+    amount: parseFloat(amountKes),
+    currency: 'KES',
+    payout_method_type: 'ke_mpesa',
+    payout_method: {
+      type: 'ke_mpesa',
+      fields: {
+        phone_number: formattedPhone,
+      }
     },
     sender: {
       name: 'TemboSwift',
-      phone_number: '+12143045008',
-      address: '867 Valley Pine Drive, Fenton, MO 63026',
       country: 'US',
       currency: 'USD',
       entity_type: 'company',
     },
-    beneficiary_country: 'KE',
-    payout_currency: 'KES',
-    sender_currency: 'USD',
-    sender_amount: amountKes / 129,
-    payout_amount: amountKes,
+    beneficiary: {
+      name: recipientName,
+      country: 'KE',
+    },
     description: `TemboSwift transfer ${transferId}`,
-    merchant_reference_id: `ts_${transferId}`,
+    merchant_reference_id: `ts_${transferId}_${Date.now()}`,
   };
 
   return await rapydRequest('post', '/v1/payouts', body);
