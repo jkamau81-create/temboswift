@@ -21,7 +21,6 @@ async function createPaymentIntent({ transferId, userId, email, name, amountUsd 
     amount: amountCents,
     currency: 'usd',
     customer: customer.id,
-    automatic_payment_methods: { enabled: true },
     metadata: {
       transfer_id: transferId,
       kenyasend_user_id: userId,
