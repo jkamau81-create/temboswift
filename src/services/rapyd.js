@@ -1,21 +1,22 @@
-﻿const axios = require('axios');
+﻿require('dotenv').config();
+const axios = require('axios');
 const crypto = require('crypto');
 
 const ACCESS_KEY = process.env.RAPYD_ACCESS_KEY;
 const SECRET_KEY = process.env.RAPYD_SECRET_KEY;
 const BASE_URL = 'https://sandboxapi.rapyd.net';
 
-function generateSignature(method, path, body, salt, timestamp) {
+function generateSignature(method, path, salt, timestamp, body) {
   const bodyString = body ? JSON.stringify(body) : '';
   const toSign = method.toLowerCase() + path + salt + timestamp + ACCESS_KEY + SECRET_KEY + bodyString;
-  return Buffer.from(crypto.createHmac('sha256', SECRET_KEY).update(toSign).digest()).toString('base64');
+  const hash = crypto.createHmac('sha256', SECRET_KEY).update(toSign).digest('hex');
+  return Buffer.from(hash).toString('base64');
 }
 
 async function rapydRequest(method, path, body = null) {
-  const salt = crypto.randomBytes(12).toString('hex');
+  const salt = crypto.randomBytes(8).toString('hex');
   const timestamp = Math.floor(Date.now() / 1000).toString();
-  const signature = generateSignature(method, path, body, salt, timestamp);
-
+  const signature = generateSignature(method, path, salt, timestamp, body);
   const headers = {
     'Content-Type': 'application/json',
     'access_key': ACCESS_KEY,
@@ -23,52 +24,61 @@ async function rapydRequest(method, path, body = null) {
     'timestamp': timestamp,
     'signature': signature,
   };
-
-  const res = await axios({
-    method,
-    url: BASE_URL + path,
-    headers,
-    data: body,
-  });
-
-  return res.data;
+  try {
+    const res = await axios({ method, url: BASE_URL + path, headers, data: body ? JSON.stringify(body) : undefined });
+    return res.data;
+  } catch(e) {
+    const msg = e.response?.data?.status?.message || e.message;
+    throw new Error('Rapyd error: ' + msg + '\nDetails: ' + JSON.stringify(e.response?.data, null, 2));
+  }
 }
 
 async function sendMpesaPayout(phone, amountKes, recipientName, transferId) {
-  // Format phone - ensure it starts with +254
-  let formattedPhone = phone.replace(/\s/g, '');
-  if (formattedPhone.startsWith('0')) formattedPhone = '+254' + formattedPhone.slice(1);
-  if (!formattedPhone.startsWith('+')) formattedPhone = '+' + formattedPhone;
+  let p = phone.replace(/\s/g, '');
+  if (p.startsWith('0')) p = '+254' + p.slice(1);
+  if (!p.startsWith('+')) p = '+' + p;
 
   const body = {
-    amount: parseFloat(amountKes),
-    currency: 'KES',
-    payout_method_type: 'ke_mpesa',
-    payout_method: {
-      type: 'ke_mpesa',
-      fields: {
-        phone_number: formattedPhone,
-      }
-    },
+    payout_method_type: 'ke_general_bank',
+    sender_currency: 'USD',
+    sender_country: 'US',
+    sender_entity_type: 'company',
+    payout_currency: 'KES',
+    beneficiary_country: 'KE',
+    beneficiary_entity_type: 'individual',
+    payout_amount: parseFloat(amountKes),
     sender: {
-      name: 'TemboSwift',
+      name: 'TemboSwift Inc',
       country: 'US',
       currency: 'USD',
       entity_type: 'company',
+      identification_type: 'company_registered_number',
+      identification_value: 'TS2026001'
     },
     beneficiary: {
       name: recipientName,
       country: 'KE',
+      currency: 'KES',
+      phone_number: p
     },
-    description: `TemboSwift transfer ${transferId}`,
-    merchant_reference_id: `ts_${transferId}_${Date.now()}`,
+    payout_method: {
+      type: 'ke_mpesa',
+      fields: {
+        phone_number: p
+      }
+    },
+    description: 'TemboSwift transfer ' + transferId,
+    merchant_reference_id: 'ts_' + Date.now()
   };
+
+  console.log('RAPYD BODY:');
+  console.log(JSON.stringify(body, null, 2));
 
   return await rapydRequest('post', '/v1/payouts', body);
 }
 
 async function getPayoutStatus(payoutId) {
-  return await rapydRequest('get', `/v1/payouts/${payoutId}`);
+  return await rapydRequest('get', '/v1/payouts/' + payoutId);
 }
 
-module.exports = { sendMpesaPayout, getPayoutStatus };
+module.exports = { sendMpesaPayout, getPayoutStatus, rapydRequest };
