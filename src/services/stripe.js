@@ -1,4 +1,4 @@
-﻿const Stripe = require('stripe');
+const Stripe = require('stripe');
 const logger = require('../config/logger');
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 async function getOrCreateCustomer(userId, email, name) {
@@ -16,6 +16,7 @@ async function createPaymentIntent({ transferId, userId, email, name, amountUsd 
   const customer = await getOrCreateCustomer(userId, email, name);
   const amountCents = Math.round(amountUsd * 100);
   const paymentIntent = await stripe.paymentIntents.create({
+      payment_method_types: ["card"],
     amount: amountCents,
     currency: 'usd',
     customer: customer.id,
@@ -37,3 +38,4 @@ function constructEvent(rawBody, sig) {
   return stripe.webhooks.constructEvent(rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
 }
 module.exports = { createPaymentIntent, getOrCreateCustomer, constructEvent };
+
