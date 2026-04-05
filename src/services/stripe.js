@@ -17,6 +17,7 @@ async function createPaymentIntent({ transferId, userId, email, name, amountUsd 
   const amountCents = Math.round(amountUsd * 100);
   const paymentIntent = await stripe.paymentIntents.create({
       payment_method_types: ["card"],
+      payment_method_types: ["card"],
     amount: amountCents,
     currency: 'usd',
     customer: customer.id,
@@ -38,4 +39,5 @@ function constructEvent(rawBody, sig) {
   return stripe.webhooks.constructEvent(rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
 }
 module.exports = { createPaymentIntent, getOrCreateCustomer, constructEvent };
+
 
