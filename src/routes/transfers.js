@@ -11,7 +11,7 @@ const router = express.Router();
 router.get('/quote', requireAuth, async (req, res) => {
   try {
     const amount = parseFloat(req.query.amount);
-    if (!amount || amount < 1) return res.status(400).json({ error: 'minimum $1' });
+    if (!amount || amount < 2) return res.status(400).json({ error: 'minimum $1' });
     if (amount > 10000) return res.status(400).json({ error: 'Maximum single transfer is $10,000' });
     const quote = await fxService.getQuote(amount);
     res.json(quote);
@@ -80,5 +80,6 @@ router.get('/:id', requireAuth, async (req, res) => {
   }
 });
 module.exports = router;
+
 
 
